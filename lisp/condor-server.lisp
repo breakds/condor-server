@@ -52,14 +52,22 @@
 (defun copy-files (from to)
   "copy files under diretory specified by \"from\" to directory
   \"to\". Directory will be created if not exist. Copy is overwrite
-  enabled."
-  (if (cl-fad:directory-exists-p from)
-      (progn 
-        (when (cl-fad:file-exists-p to)
-          (cl-fad:delete-directory-and-files to :if-does-not-exist :ignore))
-        ;; Create target directory
-        (ensure-directories-exist (concatenate 'string to "/fake"))
-        (walk-directory from :directories :breadth-first (lambda (x) 
+  enabled. Directory structure will be flatten in the destination"
+  (when (cl-fad:directory-exists-p from)
+    (progn 
+      (when (cl-fad:file-exists-p to)
+        (cl-fad:delete-directory-and-files to :if-does-not-exist :ignore))
+      ;; Create target directory
+      (cl-fad:walk-directory from 
+                             (lambda (x) (let* ((filename (file-namestring x))
+                                                (tobe (concatenate 'string to "/" filename)))
+                                           (when filename
+                                             (ensure-directories-exist tobe)
+                                             (cl-fad:copy-file x tobe))))))
+    t))
+     
+
+
                         
         
   
