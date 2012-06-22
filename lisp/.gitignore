@@ -1,0 +1,12 @@
+# Fast Common Lisp Complied Unit
+########################################
+*.fasl
+
+# Emacs Backup File
+########################################
+*~
+.*~
+
+# Html Files for Testing
+########################################
+*.html
