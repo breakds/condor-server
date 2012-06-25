@@ -48,6 +48,11 @@
     (apply #'format t fmt args)
     (format t "~%")))
 
+;; Response Facilities
+(defun signal-ok () "ok")
+(defun signal-error () "error")
+
+
 ;; File Operations
 (defun copy-files (from to)
   "copy files under diretory specified by \"from\" to directory
@@ -90,33 +95,35 @@
       (cond 
         ((null name) 
          (log-to-file 'error "create: name not provided.") 
-         (format nil "error"))
+         (signal-error))
         ((gethash name *dispatchers*) 
          (log-to-file 'error "create: dispacther ~a exists." name)
-         (format nil "error"))
+         (signal-error))
         (t (setf (gethash name *dispatchers*) (make-dispatcher :name name
                                                                :location location
                                                                :pool (make-vector)))
            (log-to-file 'done "create: dispatcher ~a created successfully." name)
-           (format nil "ok")))))
+           (log-to-file 'info "create: dispatcher ~a located at ~a." name location)
+           (signal-ok)))))
 
 
 ;; +----------------------------------------
-;; | Add-Job Dispatcher:
+;; | Add-Job to Dispatcher:
 ;; | Input: path to the job (path), name of dispatcher (name)
 ;; | Output: "ok" on successul call and "error" otherwise
 ;; +----------------------------------------
-(hunchentoot:define-easy-handler (create-dispatcher :uri "/add") (path name)
+(hunchentoot:define-easy-handler (add-job :uri "/add") (path name)
   (setf (hunchentoot:content-type*) "text/plain")
   (if (eq (hunchentoot:request-method*) :GET)
       (format nil "Sorry, buddy, but /add do not offer a webpage mode.")
-      (let ((dispatcher (gethash name *dispatchers*)))
-      (cond (dispatcher 
+      (let ((object (gethash name *dispatchers*)))
+        (cond (object (push-back (make-job :status 0) (dispatcher-pool object))
+                      (log-to-file 'done "add: ~a received a job from ~a, now have ~a jobs."
+                                   name path (length (dispatcher-pool object)))
+                      (signal-ok))
+              (t (log-to-file 'error "add: dispatcher *~a* does not exist." name)
+                 (signal-error))))))
 
-
-        ((null name) (log-to-file 'error "add: dispatcher's name not provided.") 
-             (format nil "error"))
-            ((gethash name *dispatchers*) 
              
 
 
