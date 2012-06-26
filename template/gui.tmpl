@@ -1,0 +1,39 @@
+<html>
+  <head>
+    <style type="text/css">
+      .center-text{
+      text-align:center;
+      }
+    </style>
+    <script type='text/javascript' src='https://www.google.com/jsapi'></script>
+    <script type='text/javascript'>
+      google.load('visualization', '1', {packages:['table']});
+      google.setOnLoadCallback(drawTable);
+      function drawTable() {
+        var monitor = new google.visualization.DataTable();
+        monitor.addColumn('string', 'Check');
+        monitor.addColumn('number', 'JobID');
+        monitor.addColumn('string', 'Status');
+      
+        
+        monitor.addRows( <!-- TMPL_VAR row-num --> );
+        <!-- TMPL_LOOP rows -->
+        monitor.setCell( <!-- TMPL_VAR row-id -->, 0, '<input type="checkbox" align="center" />' );
+        monitor.setCell( <!-- TMPL_VAR row-id -->, 1, <!-- TMPL_VAR job-id -->, null, {"className" : "center-text"} );
+        monitor.setCell( <!-- TMPL_VAR row-id -->, 2, "<!-- TMPL_VAR status -->" );
+        <!-- /TMPL_LOOP -->
+
+
+
+
+
+        var table = new google.visualization.Table(document.getElementById('table_div'));
+        table.draw(monitor, {showRowNumber: false, allowHtml:true, cssClassNames:{tableCell:'center-text'} } );
+      }
+    </script>
+  </head>
+
+  <body>
+    <div id='table_div'></div>
+  </body>
+</html>

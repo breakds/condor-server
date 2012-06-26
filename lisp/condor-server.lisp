@@ -1,6 +1,6 @@
 ;; ==================== Data structure ====================
 (defstruct dispatcher name location pool)
-(defstruct job status) ;; for status 0=pending -1=error 1=processing 2=complete 3=received
+(defstruct job id status) ;; for status 0=pending -1=error 1=processing 2=complete 3=received
 
 (defun make-vector ()
   "make a length-adjustable array (vector)"
@@ -17,7 +17,7 @@
 ;; ==================== Internal Variables ====================
 (defparameter *acceptor* nil "the condor dispatchers acceptor")
 (defparameter *dispatchers* (make-hash-table :test #'equal) "the set of dispacthers")
-
+(defparameter *gui-tmpl* #P"../template/gui.tmpl")
 
 ;; ==================== External Variables ====================
 (defparameter *log-path* "~/tmp/condor_server.log")
@@ -53,6 +53,7 @@
 (defun signal-error () "error")
 
 
+
 ;; File Operations
 (defun copy-files (from to)
   "copy files under diretory specified by \"from\" to directory
@@ -74,6 +75,25 @@
 
 
                         
+;; Template Generation/Fill
+(defun gen-gui-row (job-obj)
+  "generate a row for one job in html"
+  (list :job-id (format nil "~a" (job-id job-obj))
+        :row-id (format nil "~a" (job-id job-obj))
+        :status (cond ((= (job-status job-obj) 0) "pending")
+                      ((= (job-status job-obj) 1) "processing")
+                      ((= (job-status job-obj) 2) "complete")
+                      ((= (job-status job-obj) 3) "received")
+                      ((= (job-status job-obj) -1) "error"))))
+
+(defun gen-gui-html (dispatcher-obj)
+  "generate html file from template for one dispatcher"
+  (with-output-to-string (html-template:*default-template-output*)
+    (html-template:fill-and-print-template 
+     *gui-tmpl*
+     (list :row-num (length (dispatcher-pool dispatcher-obj)) 
+           :rows (loop for item across (dispatcher-pool dispatcher-obj)
+                    collect (gen-gui-row item))))))
         
   
   
@@ -117,12 +137,27 @@
   (if (eq (hunchentoot:request-method*) :GET)
       (format nil "Sorry, buddy, but /add do not offer a webpage mode.")
       (let ((object (gethash name *dispatchers*)))
-        (cond (object (push-back (make-job :status 0) (dispatcher-pool object))
+        (cond (object (push-back (make-job :status 0 :id (length (dispatcher-pool object)))
+                                 (dispatcher-pool object))
                       (log-to-file 'done "add: ~a received a job from ~a, now have ~a jobs."
                                    name path (length (dispatcher-pool object)))
                       (signal-ok))
               (t (log-to-file 'error "add: dispatcher *~a* does not exist." name)
                  (signal-error))))))
+
+
+;; +----------------------------------------
+;; | Web Browser GUI
+;; | Input: name of dispatcher
+;; | Output: the gui webpage
+;; +----------------------------------------
+(hunchentoot:define-easy-handler (show-gui :uri "/gui") (name)
+  (setf (hunchentoot:content-type*) "text/html")
+  (let ((object (gethash name *dispatchers*)))
+    (cond (object (log-to-file 'done "gui: gui request completed.")
+                  (gen-gui-html object))
+          (t (log-to-file 'error "gui: dispatcher *~a* does not exist." name)
+             (signal-error)))))
 
              
 
