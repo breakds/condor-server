@@ -1,5 +1,8 @@
 ;; ==================== Data structure ====================
 (defstruct dispatcher name location pool)
+(defmethod dispatcher-last-job (d)
+  (get-back (dispatcher-pool d)))
+
 (defstruct job id status) ;; for status 0=pending -1=error 1=processing 2=complete 3=received
 
 (defun make-vector ()
@@ -11,6 +14,10 @@
   (let ((old-len (length vec)))
     (adjust-array vec (1+ old-len))
     (setf (aref vec old-len) x)))
+
+(defun get-back (vec)
+  "get the last element out of a vector"
+  (aref vec (1- (length vec))))
   
 
 
@@ -21,6 +28,8 @@
 
 ;; ==================== External Variables ====================
 (defparameter *log-path* "~/tmp/condor_server.log")
+;; the trailing "/" is very important in *server-base*
+(defparameter *server-base* #P"~/tmp/serverbase/")
 
 
 ;; ==================== Aux Functions ===================
@@ -66,7 +75,7 @@
       ;; Create target directory
       (cl-fad:walk-directory from 
                              (lambda (x) (let* ((filename (file-namestring x))
-                                                (tobe (concatenate 'string to "/" filename)))
+                                                (tobe (merge-pathnames filename to)))
                                            (when filename
                                              (ensure-directories-exist tobe)
                                              (cl-fad:copy-file x tobe))))))
@@ -105,10 +114,10 @@
 ;; ==================== Handlers ====================
 ;; +----------------------------------------
 ;; | Create Dispatcher:
-;; | Input: Dispatcher's name (name) and location (location)
+;; | Input: Dispatcher's name (name)
 ;; | Output: "ok" on successul call and "error" otherwise
 ;; +----------------------------------------
-(hunchentoot:define-easy-handler (create-dispatcher :uri "/create") (name location)
+(hunchentoot:define-easy-handler (create-dispatcher :uri "/create") (name)
   (setf (hunchentoot:content-type*) "text/plain")
   (if (eq (hunchentoot:request-method*) :GET)
       (format nil "Sorry, buddy, but /create do not offer a webpage mode.")
@@ -119,11 +128,14 @@
         ((gethash name *dispatchers*) 
          (log-to-file 'error "create: dispacther ~a exists." name)
          (signal-error))
-        (t (setf (gethash name *dispatchers*) (make-dispatcher :name name
-                                                               :location location
-                                                               :pool (make-vector)))
+        (t (setf (gethash name *dispatchers*) 
+                 (make-dispatcher :name name
+                                  :location (merge-pathnames (format nil "~a/" name)
+                                                             *server-base*)
+                                  :pool (make-vector)))
            (log-to-file 'done "create: dispatcher ~a created successfully." name)
-           (log-to-file 'info "create: dispatcher ~a located at ~a." name location)
+           (log-to-file 'info "create: dispatcher ~a located at ~a." name 
+                        (dispatcher-location (gethash name *dispatchers*)))
            (signal-ok)))))
 
 
@@ -139,7 +151,14 @@
       (let ((object (gethash name *dispatchers*)))
         (cond (object (push-back (make-job :status 0 :id (length (dispatcher-pool object)))
                                  (dispatcher-pool object))
-                      (log-to-file 'done "add: ~a received a job from ~a, now have ~a jobs."
+                      ;; copy job-specific input files
+                      (let* ((job-obj (dispatcher-last-job object))
+                             (destination (merge-pathnames (format nil "input/~a/" 
+                                                                   (job-id job-obj))
+                                                           (dispatcher-location object))))
+                        (ensure-directories-exist (merge-pathnames "fake" destination))
+                        (copy-files path destination))
+                      (log-to-file 'done "add: ~a received a job from ~a, now have ~a job~a."
                                    name path (length (dispatcher-pool object)))
                       (signal-ok))
               (t (log-to-file 'error "add: dispatcher *~a* does not exist." name)
@@ -159,19 +178,19 @@
           (t (log-to-file 'error "gui: dispatcher *~a* does not exist." name)
              (signal-error)))))
 
-             
 
-
-                                                                   
+;; ==================== server-side controllers ====================
 
 (defun start-server (&optional (port 8855))
   "Start the server with/without a specific port"
-  (setf *acceptor* (make-instance 'hunchentoot:easy-acceptor :port port))
+  (setf *acceptor* (make-instance 'hunchentoot:easy-acceptor :port port
+                                  :document-root *server-base*))
   (hunchentoot:start *acceptor*)
   (format t "server started.~%"))
 
 (defun stop-server ()
   "Stop the server"
+  (setf *dispatchers* (make-hash-table :test #'equal))
   (hunchentoot:stop *acceptor*)
   (format t "server stopped.~%"))
 
