@@ -3,7 +3,9 @@
 (defmethod dispatcher-last-job (d)
   (get-back (dispatcher-pool d)))
 
-(defstruct job id status) ;; for status 0=pending -1=error 1=processing 2=complete 3=received
+(defstruct job id status ip port) ;; for status 0=pending -1=error 1=processing 2=complete 3=received
+
+
 
 (defun make-vector ()
   "make a length-adjustable array (vector)"
