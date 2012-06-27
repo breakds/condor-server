@@ -14,6 +14,7 @@
         monitor.addColumn('string', 'Check');
         monitor.addColumn('number', 'JobID');
         monitor.addColumn('string', 'Status');
+        monitor.addColumn('string', 'Machine' );
       
         
         monitor.addRows( <!-- TMPL_VAR row-num --> );
@@ -21,6 +22,7 @@
         monitor.setCell( <!-- TMPL_VAR row-id -->, 0, '<input type="checkbox" align="center" />' );
         monitor.setCell( <!-- TMPL_VAR row-id -->, 1, <!-- TMPL_VAR job-id -->, null, {"className" : "center-text"} );
         monitor.setCell( <!-- TMPL_VAR row-id -->, 2, "<!-- TMPL_VAR status -->" );
+        monitor.setCell( <!-- TMPL_VAR row-id -->, 3, "<!-- TMPL_VAR ip -->" );
         <!-- /TMPL_LOOP -->
 
 

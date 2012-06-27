@@ -1,5 +1,6 @@
 ;; ==================== Data structure ====================
-(defstruct dispatcher name location pool)
+(defstruct job id status (node-id -1) (ip "")) ;; for status 0=pending -1=error 1=processing 2=complete 3=received
+(defstruct dispatcher name location pool node-map nodes)
 (defmethod dispatcher-last-job (d)
   "get the last job of the current dispatcher"
   (get-back (dispatcher-pool d)))
@@ -15,6 +16,16 @@
   "clear the job pool of dispatcher"
   (setf (dispatcher-pool d) (make-vector)))
 
+(defmethod dispatcher-clear-nodes (d)
+  "clear the nodes information"
+  (setf (dispatcher-nodes d) (make-vector))
+  (setf (dispatcher-node-map d) (make-hash-table :test #'equal)))
+
+(defmethod dispatcher-init (d)
+  "initialization of dispatcher"
+  (dispatcher-clear-pool d)
+  (dispatcher-clear-nodes d))
+
 (defmethod dispatcher-set-status (d jobid st)
   "set the status of the specified job to be pending"
   (cond ((eq st 'pending) (setf (job-status (aref (dispatcher-pool d) jobid)) 0))
@@ -25,7 +36,7 @@
 
     
 
-(defstruct job id status ip port) ;; for status 0=pending -1=error 1=processing 2=complete 3=received
+
 
 
 
@@ -123,6 +134,7 @@
   "generate a row for one job in html"
   (list :job-id (format nil "~a" (job-id job-obj))
         :row-id (format nil "~a" (job-id job-obj))
+        :ip (job-ip job-obj)
         :status (cond ((= (job-status job-obj) 0) "pending")
                       ((= (job-status job-obj) 1) "processing")
                       ((= (job-status job-obj) 2) "complete")
@@ -166,7 +178,9 @@
                  (make-dispatcher :name name
                                   :location (merge-pathnames (format nil "~a/" name)
                                                              *server-base*)
-                                  :pool (make-vector)))
+                                  :pool (make-vector)
+                                  :nodes (make-vector)
+                                  :node-map (make-hash-table :test #'equal)))
            (log-to-file 'done "create: dispatcher ~a created successfully." name)
            (log-to-file 'info "create: dispatcher ~a located at ~a." name 
                         (dispatcher-location (gethash name *dispatchers*)))
@@ -230,6 +244,11 @@
         (let* ((local-path (merge-pathnames "shared"
                                             (dispatcher-location d)))
                (file-list (cl-fad:list-directory local-path)))
+          ;; register node
+          (unless (gethash (hunchentoot:real-remote-addr) (dispatcher-node-map d))
+            (push-back (hunchentoot:real-remote-addr) (dispatcher-nodes d))
+            (setf (gethash (hunchentoot:real-remote-addr) (dispatcher-node-map d))
+                  (1- (length (dispatcher-nodes d)))))
           (log-to-file 'done "register: slot registered.")
           (format nil "ok~%~{~a~%~}"
                   (loop for file in file-list
@@ -254,9 +273,16 @@
           (signal-error))
         (let ((jobid (dispatcher-next-pending-job d)))
           (if jobid
+              ;; fetch job successfully
               (let* ((local-path (merge-pathnames (format nil "input/~a/" jobid)
                                                   (dispatcher-location d)))
-                     (file-list (cl-fad:list-directory local-path)))
+                     (file-list (cl-fad:list-directory local-path))
+                     (node-id (gethash (hunchentoot:real-remote-addr)
+                                       (dispatcher-node-map d))))
+                (setf (job-node-id (aref (dispatcher-pool d) jobid))
+                      node-id)
+                (setf (job-ip (aref (dispatcher-pool d) jobid))
+                      (hunchentoot:real-remote-addr))
                 (log-to-file 'done "fetch: offering files for job *~a*:~a." name jobid)
                 (dispatcher-set-status d jobid 'processing)
                 (format nil "~a~%~{~a~%~}"
@@ -284,7 +310,7 @@
           (log-to-file 'error "reset: dispatcher *~a* does not exist." name)
           (signal-error))
         (progn
-          (dispatcher-clear-pool d)
+          (dispatcher-init d)
           (loop for i from 0 
              while (cl-fad:directory-exists-p (merge-pathnames (format nil "input/~a/" i)
                                                                (dispatcher-location d)))
@@ -365,12 +391,16 @@
                                        name jobid)
                           (signal-error))))))))))
                      
+
+(hunchentoot:define-easy-handler (test-handler :uri "/test") ()
+  (setf (hunchentoot:content-type*) "text/plain")
+  (format nil "~a~%" (hunchentoot:real-remote-addr)))
       
 
 
 ;; ==================== server-side controllers ====================
 
-(defun start-server (&optional (port 8855))
+(defun start-server (&optional (port 4242))
   "Start the server with/without a specific port"
   (setf *acceptor* (make-instance 'hunchentoot:easy-acceptor :port port
                                   :document-root *server-base*))
