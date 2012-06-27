@@ -1,7 +1,29 @@
 ;; ==================== Data structure ====================
 (defstruct dispatcher name location pool)
 (defmethod dispatcher-last-job (d)
+  "get the last job of the current dispatcher"
   (get-back (dispatcher-pool d)))
+
+(defmethod dispatcher-next-pending-job (d)
+  "return the id of the next pending job"
+  (let ((pending-job (find-if (lambda (j) (= (job-status j) 0))
+                              (dispatcher-pool d))))
+    (when pending-job
+      (job-id pending-job))))
+
+(defmethod dispatcher-clear-pool (d)
+  "clear the job pool of dispatcher"
+  (setf (dispatcher-pool d) (make-vector)))
+
+(defmethod dispatcher-set-status (d jobid st)
+  "set the status of the specified job to be pending"
+  (cond ((eq st 'pending) (setf (job-status (aref (dispatcher-pool d) jobid)) 0))
+        ((eq st 'processing) (setf (job-status (aref (dispatcher-pool d) jobid)) 1))
+        ((eq st 'complete) (setf (job-status (aref (dispatcher-pool d) jobid)) 2))
+        ((eq st 'received) (setf (job-status (aref (dispatcher-pool d) jobid)) 3))
+        (t (setf (job-status (aref (dispatcher-pool d) jobid)) -1))))
+
+    
 
 (defstruct job id status ip port) ;; for status 0=pending -1=error 1=processing 2=complete 3=received
 
@@ -20,6 +42,7 @@
 (defun get-back (vec)
   "get the last element out of a vector"
   (aref vec (1- (length vec))))
+
   
 
 
@@ -89,6 +112,10 @@
   (cl-fad:copy-file from to :overwrite t)
   t)
 
+(defun pathname-fullname (path)
+  "get the full file name from a file path"
+  (concatenate 'string (pathname-name path) "." (pathname-type path)))
+
 
                         
 ;; Template Generation/Fill
@@ -149,7 +176,7 @@
 ;; +----------------------------------------
 ;; | Add-Job to Dispatcher:
 ;; | Input: path to the job (path), name of dispatcher (name)
-;; | Output: "ok" on successul call and "error" otherwise
+;; | Output: "ok" upon successul call and "error" otherwise
 ;; +----------------------------------------
 (hunchentoot:define-easy-handler (add-job :uri "/add") (path name)
   (setf (hunchentoot:content-type*) "text/plain")
@@ -186,6 +213,114 @@
              (signal-error)))))
 
 
+;; +----------------------------------------
+;; | Register slot (machine)
+;; | Input: name of dispatcher
+;; | Output: shared file list with a leading "ok" upon 
+;; |         successul call and "error" otherwise
+;; +----------------------------------------
+(hunchentoot:define-easy-handler (register :uri "/register") (name)
+  (setf (hunchentoot:content-type*) "text/plain")
+  (let ((d (gethash name *dispatchers*)))
+    (if (null d)
+        (progn
+          ;; dispatcher not found
+          (log-to-file 'error "register: dispatcher *~a* does not exist." name)
+          (signal-error))
+        (let* ((local-path (merge-pathnames "shared"
+                                            (dispatcher-location d)))
+               (file-list (cl-fad:list-directory local-path)))
+          (log-to-file 'done "register: slot registered.")
+          (format nil "ok~%~{~a~%~}"
+                  (loop for file in file-list
+                     collect (pathname-fullname file)))))))
+
+
+
+
+
+;; +----------------------------------------
+;; | Fetch Job
+;; | Input: name of dispatcher
+;; | Output: job id and filelist
+;; +----------------------------------------
+(hunchentoot:define-easy-handler (fetch-job :uri "/fetch") (name)
+  (setf (hunchentoot:content-type*) "text/plain")
+  (let ((d (gethash name *dispatchers*)))
+    (if (null d)
+        (progn
+          ;; dispatcher not found
+          (log-to-file 'error "fetch: dispatcher *~a* does not exist." name)
+          (signal-error))
+        (let ((jobid (dispatcher-next-pending-job d)))
+          (if jobid
+              (let* ((local-path (merge-pathnames (format nil "input/~a/" jobid)
+                                                  (dispatcher-location d)))
+                     (file-list (cl-fad:list-directory local-path)))
+                (log-to-file 'done "fetch: offering files for job *~a*:~a." name jobid)
+                (dispatcher-set-status d jobid 'processing)
+                (format nil "~a~%~{~a~%~}"
+                        jobid
+                        (loop for file in file-list
+                           collect (pathname-fullname file))))
+              (progn
+                ;; no more pending jobs
+                (log-to-file 'info "fetch: dispatcher *~a* no more jobs to offer." name)
+                (format nil "-1")))))))
+
+
+;; +----------------------------------------
+;; | Reset dispatcher and will add every job
+;; |     under *server-base*/<dispatcher name>/input
+;; | Input: dispatcher name
+;; | Output: "ok" on successul call and "error" otherwise
+;; +----------------------------------------
+(hunchentoot:define-easy-handler (reset-handler :uri "/reset") (name)
+  (setf (hunchentoot:content-type*) "text/plain")
+  (let ((d (gethash name *dispatchers*)))
+    (if (null d)
+        (progn
+          ;; dispatcher not found
+          (log-to-file 'error "reset: dispatcher *~a* does not exist." name)
+          (signal-error))
+        (progn
+          (dispatcher-clear-pool d)
+          (loop for i from 0 
+             while (cl-fad:directory-exists-p (merge-pathnames (format nil "input/~a/" i)
+                                                               (dispatcher-location d)))
+             do
+               (push-back (make-job :status 0 :id (length (dispatcher-pool d)))
+                          (dispatcher-pool d))
+               (log-to-file 'done "reset: dispatcher *~a* picked a job, now have ~a jobs."
+                            name  (length (dispatcher-pool d)))
+          (signal-ok))))))
+
+
+;; +----------------------------------------
+;; | Signal completion of job
+;; | Input: dispatcher name, job id
+;; | Output: "ok" upon successul call and "error" otherwise
+;; +----------------------------------------
+(hunchentoot:define-easy-handler (sig-complete :uri "/sigcomplete") (name jobid)
+  (setf (hunchentoot:content-type*) "text/plain")
+  (let ((d (gethash name *dispatchers*)))
+    (if (null d)
+        (progn
+          ;; dispatcher not founds
+          (log-to-file 'error "sigcomplete: dispatcher *~a* does not exist." name)
+          (signal-error))
+        (if (<= (length (dispatcher-pool d)) (parse-integer jobid))
+            (progn
+              ;; jobid has not been created yet
+              (log-to-file 'error "sigcomplete: dispatcher *~a* does not spawn job ~a."
+                           name jobid)
+              (signal-error))
+            (progn
+              (dispatcher-set-status d (parse-integer jobid) 'complete)
+              (log-to-file 'done "sigcomplete: job *~a*:~a complete!" name jobid)
+              (signal-ok))))))
+                        
+
 
 ;; +----------------------------------------
 ;; | Handling upload request
@@ -220,18 +355,15 @@
                                           (dispatcher-location d)))
                         (progn
                           ;; successful
-                          (log-to-file 'done "received file for job *~a*:~a."
+                          (log-to-file 'done "upload: received file for job *~a*:~a!"
                                        name jobid)
+                          (dispatcher-set-status d (parse-integer jobid) 'received)
                           (signal-ok))
                         (progn 
                           ;; copy is not successful
-                          (log-to-file 'error "upload failed for job *~a*:~a."
+                          (log-to-file 'error "upload: upload failed for job *~a*:~a."
                                        name jobid)
                           (signal-error))))))))))
-
-                        
-
-
                      
       
 
