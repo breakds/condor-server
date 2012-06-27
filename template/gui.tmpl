@@ -1,6 +1,26 @@
 <html>
   <head>
     <style type="text/css">
+      .bold-lime-font {
+      color: lime;
+      font-weight: bold;
+      }
+      .bold-blue-font {
+      color: blue;
+      font-weight: bold;
+      }
+      .bold-silver-font {
+      color: silver;
+      font-weight: bold;
+      }
+      .bold-red-font {
+      color: red;
+      font-weight: bold;
+      }
+      .bold-fuchsia-font {
+      color: fuchsia;
+      font-weight: bold;
+      }
       .center-text{
       text-align:center;
       }
@@ -15,14 +35,17 @@
         monitor.addColumn('number', 'JobID');
         monitor.addColumn('string', 'Status');
         monitor.addColumn('string', 'Machine' );
-      
+        monitor.addColumn('string', 'Start Time' );
+        monitor.addColumn('string', 'Duration' );
         
         monitor.addRows( <!-- TMPL_VAR row-num --> );
         <!-- TMPL_LOOP rows -->
         monitor.setCell( <!-- TMPL_VAR row-id -->, 0, '<input type="checkbox" align="center" />' );
         monitor.setCell( <!-- TMPL_VAR row-id -->, 1, <!-- TMPL_VAR job-id -->, null, {"className" : "center-text"} );
-        monitor.setCell( <!-- TMPL_VAR row-id -->, 2, "<!-- TMPL_VAR status -->" );
+        monitor.setCell( <!-- TMPL_VAR row-id -->, 2, "<!-- TMPL_VAR status -->", null, { "className" : "bold-<!-- TMPL_VAR status-color -->-font center-text"} );
         monitor.setCell( <!-- TMPL_VAR row-id -->, 3, "<!-- TMPL_VAR ip -->" );
+        monitor.setCell( <!-- TMPL_VAR row-id -->, 4, "<!-- TMPL_VAR start-time -->" );
+        monitor.setCell( <!-- TMPL_VAR row-id -->, 5, "<!-- TMPL_VAR duration -->" );
         <!-- /TMPL_LOOP -->
 
 

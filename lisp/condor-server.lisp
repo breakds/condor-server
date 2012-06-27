@@ -1,5 +1,9 @@
 ;; ==================== Data structure ====================
-(defstruct job id status (node-id -1) (ip "")) ;; for status 0=pending -1=error 1=processing 2=complete 3=received
+(defstruct job id status (node-id -1) (ip "") ;; for status 0=pending -1=error 1=processing 2=complete 3=received
+           (start-time-stamp 0) ;; start-time-stamp records a universal time
+           (completion-time-stamp 0)
+           (latest-update 0))
+
 (defstruct dispatcher name location pool node-map nodes)
 (defmethod dispatcher-last-job (d)
   "get the last job of the current dispatcher"
@@ -30,7 +34,8 @@
   "set the status of the specified job to be pending"
   (cond ((eq st 'pending) (setf (job-status (aref (dispatcher-pool d) jobid)) 0))
         ((eq st 'processing) (setf (job-status (aref (dispatcher-pool d) jobid)) 1))
-        ((eq st 'complete) (setf (job-status (aref (dispatcher-pool d) jobid)) 2))
+        ((eq st 'complete) (setf (job-status (aref (dispatcher-pool d) jobid)) 2
+                                 (job-completion-time-stamp (aref (dispatcher-pool d) jobid)) (get-universal-time)))
         ((eq st 'received) (setf (job-status (aref (dispatcher-pool d) jobid)) 3))
         (t (setf (job-status (aref (dispatcher-pool d) jobid)) -1))))
 
@@ -72,11 +77,15 @@
 ;; Log Facilities
 (defparameter *months* #("Nil" "Jan" "Feb" "Mar" "Apr" "May" "Jun" "Jul" "Aug" "Sep" "Oct" "Nov" "Dec"))
 
-(defun time-stamp ()
+(defun time-stamp (&optional (utime (get-universal-time)))
   "get the time stamp printed to string"
-  (multiple-value-bind (second minute hour day month year) (get-decoded-time)
+  (multiple-value-bind (second minute hour day month year) (decode-universal-time utime)
     (format nil "[~2,'0d:~2,'0d:~2,'0d ~a-~a-~a]" hour minute second 
             (aref *months* month) day year)))
+
+
+      
+
 
 (defun log-to-file (type fmt &rest args)
   "log msg to a certain file, or *log-path* when filename is not provided."
@@ -130,16 +139,41 @@
 
                         
 ;; Template Generation/Fill
+(defun decode-universal-time-diff (tic toc)
+  "decode time difference between universal time stamp into string"
+  (let* ((diff (- toc tic)))
+    (multiple-value-bind (day diff-1) (floor diff 86400)
+      (multiple-value-bind (hour diff-2) (floor diff-1 3600)
+        (multiple-value-bind (minute second) (floor diff-2 60)
+          (cond ((= 1 day) (format nil "1 day, ~2,'0d:~2,'0d:~2,'0d" hour minute second))
+                ((< 1 day) (format nil "~a days, ~2,'0d:~2,'0d:~2,'0d" day hour minute second))
+                (t (format nil "~2,'0d:~2,'0d:~2,'0d" hour minute second))))))))
+
+    
 (defun gen-gui-row (job-obj)
   "generate a row for one job in html"
   (list :job-id (format nil "~a" (job-id job-obj))
         :row-id (format nil "~a" (job-id job-obj))
         :ip (job-ip job-obj)
+        :start-time (if (= (job-start-time-stamp job-obj) 0)
+                        ""
+                        (time-stamp (job-start-time-stamp job-obj)))
+        :duration (cond ((= (job-start-time-stamp job-obj) 0) "")
+                        ((>= (job-status job-obj) 2) 
+                         (decode-universal-time-diff (job-start-time-stamp job-obj)
+                                                     (job-completion-time-stamp job-obj)))
+                        (t (decode-universal-time-diff (job-start-time-stamp job-obj)
+                                                       (get-universal-time))))
         :status (cond ((= (job-status job-obj) 0) "pending")
                       ((= (job-status job-obj) 1) "processing")
                       ((= (job-status job-obj) 2) "complete")
                       ((= (job-status job-obj) 3) "received")
-                      ((= (job-status job-obj) -1) "error"))))
+                      ((= (job-status job-obj) -1) "error"))
+        :status-color (cond ((= (job-status job-obj) 0) "silver")
+                            ((= (job-status job-obj) 1) "blue")
+                            ((= (job-status job-obj) 2) "lime")
+                            ((= (job-status job-obj) 3) "fuchsia")
+                            ((= (job-status job-obj) -1) "red"))))
 
 (defun gen-gui-html (dispatcher-obj)
   "generate html file from template for one dispatcher"
@@ -279,10 +313,16 @@
                      (file-list (cl-fad:list-directory local-path))
                      (node-id (gethash (hunchentoot:real-remote-addr)
                                        (dispatcher-node-map d))))
-                (setf (job-node-id (aref (dispatcher-pool d) jobid))
-                      node-id)
-                (setf (job-ip (aref (dispatcher-pool d) jobid))
-                      (hunchentoot:real-remote-addr))
+                (let ((j (aref (dispatcher-pool d) jobid)))
+                  ;; update machine information
+                  (setf (job-node-id j)
+                        node-id)
+                  ;; update machine ip
+                  (setf (job-ip j)
+                        (hunchentoot:real-remote-addr))
+                  ;; update start time stamp
+                  (setf (job-start-time-stamp j)
+                        (get-universal-time)))
                 (log-to-file 'done "fetch: offering files for job *~a*:~a." name jobid)
                 (dispatcher-set-status d jobid 'processing)
                 (format nil "~a~%~{~a~%~}"
