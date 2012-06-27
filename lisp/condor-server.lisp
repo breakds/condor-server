@@ -197,7 +197,7 @@
   (let ((d (gethash name *dispatchers*)))
     (if (null d)
         (progn
-          ;; dispatcher not found
+          ;; dispatcher not founds
           (log-to-file 'error "upload: dispatcher *~a* does not exist." name)
           (signal-error))
         (if (<= (length (dispatcher-pool d)) (parse-integer jobid))
