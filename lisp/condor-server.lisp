@@ -86,8 +86,8 @@
 (defun copy-file (from to)
   "copy a single file"
   (ensure-directories-exist to)
-  (cl-fad:copy-file from to))
-     
+  (cl-fad:copy-file from to :overwrite t)
+  t)
 
 
                         
@@ -200,7 +200,7 @@
           ;; dispatcher not found
           (log-to-file 'error "upload: dispatcher *~a* does not exist." name)
           (signal-error))
-        (if (<= (length (dispatcher-pool d)) jobid)
+        (if (<= (length (dispatcher-pool d)) (parse-integer jobid))
             (progn
               ;; jobid has not been created yet
               (log-to-file 'error "upload: dispatcher *~a* does not spawn job ~a."
@@ -214,9 +214,23 @@
                                  name jobid)
                     (signal-error))
                   (let ((path (first post-data)))
-                    (copy-file path 
-                               (merge-pathnames (format nil "shared/~a.tar.gz" jobid)
-                                                (dispatcher-location d))))))))))
+                    (if (copy-file 
+                         path 
+                         (merge-pathnames (format nil "output/~a.tar.gz" jobid)
+                                          (dispatcher-location d)))
+                        (progn
+                          ;; successful
+                          (log-to-file 'done "received file for job *~a*:~a."
+                                       name jobid)
+                          (signal-ok))
+                        (progn 
+                          ;; copy is not successful
+                          (log-to-file 'error "upload failed for job *~a*:~a."
+                                       name jobid)
+                          (signal-error))))))))))
+
+                        
+
 
                      
       
