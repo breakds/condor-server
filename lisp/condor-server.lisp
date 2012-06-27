@@ -82,6 +82,11 @@
                                              (ensure-directories-exist tobe)
                                              (cl-fad:copy-file x tobe))))))
     t))
+
+(defun copy-file (from to)
+  "copy a single file"
+  (ensure-directories-exist to)
+  (cl-fad:copy-file from to))
      
 
 
@@ -160,7 +165,7 @@
                                                            (dispatcher-location object))))
                         (ensure-directories-exist (merge-pathnames "fake" destination))
                         (copy-files path destination))
-                      (log-to-file 'done "add: ~a received a job from ~a, now have ~a job~a."
+                      (log-to-file 'done "add: ~a received a job from ~a, now have ~a job."
                                    name path (length (dispatcher-pool object)))
                       (signal-ok))
               (t (log-to-file 'error "add: dispatcher *~a* does not exist." name)
@@ -179,6 +184,42 @@
                   (gen-gui-html object))
           (t (log-to-file 'error "gui: dispatcher *~a* does not exist." name)
              (signal-error)))))
+
+
+
+;; +----------------------------------------
+;; | Handling upload request
+;; | Input: dispatcher name, job id, the multipart form
+;; | Output: "ok" on successul call and "error" otherwise
+;; +----------------------------------------
+(hunchentoot:define-easy-handler (upload-handler :uri "/upload") (name jobid)
+  (setf (hunchentoot:content-type*) "text/plain")
+  (let ((d (gethash name *dispatchers*)))
+    (if (null d)
+        (progn
+          ;; dispatcher not found
+          (log-to-file 'error "upload: dispatcher *~a* does not exist." name)
+          (signal-error))
+        (if (<= (length (dispatcher-pool d)) jobid)
+            (progn
+              ;; jobid has not been created yet
+              (log-to-file 'error "upload: dispatcher *~a* does not spawn job ~a."
+                           name jobid)
+              (signal-error))
+            (let ((post-data (hunchentoot:post-parameter "data")))
+              (if (null post-data)
+                  (progn
+                    ;; post-data not exist
+                    (log-to-file 'error "upload: *~a*:~a, post-data does not exist."
+                                 name jobid)
+                    (signal-error))
+                  (let ((path (first post-data)))
+                    (copy-file path 
+                               (merge-pathnames (format nil "shared/~a.tar.gz" jobid)
+                                                (dispatcher-location d))))))))))
+
+                     
+      
 
 
 ;; ==================== server-side controllers ====================
