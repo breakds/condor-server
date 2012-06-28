@@ -1,7 +1,11 @@
 #! /bin/bash
 
+# need to fill those variables
+# ======================================================================
 server=http://emperor.cs.wisc.edu:4242
 dispatcher=first
+let gap=60
+# ======================================================================
 
 if [ -f preprocess.sh ];
 then
@@ -43,7 +47,7 @@ until [[ ${response[0]} -eq -1 ]]; do
     eval "./runprocess.sh&" &> console.output
     pid=$!
 
-    while sleep 1; do
+    while sleep ${gap}; do
         kill -0 ${pid}
         if [[ $? -eq 0 ]]; then
             # report to server
