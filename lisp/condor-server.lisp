@@ -25,8 +25,14 @@
   (setf (dispatcher-nodes d) (make-vector))
   (setf (dispatcher-node-map d) (make-hash-table :test #'equal)))
 
+(defmethod dispatcher-clear-reports (d)
+  "delete all the report files"
+  (cl-fad:delete-directory-and-files (merge-pathnames "report"
+                                                      (dispatcher-location d))))
+
 (defmethod dispatcher-init (d)
   "initialization of dispatcher"
+  (dispatcher-clear-reports d)
   (dispatcher-clear-pool d)
   (dispatcher-clear-nodes d))
 
@@ -66,6 +72,7 @@
 (defparameter *acceptor* nil "the condor dispatchers acceptor")
 (defparameter *dispatchers* (make-hash-table :test #'equal) "the set of dispacthers")
 (defparameter *gui-tmpl* #P"../template/gui.tmpl")
+(defparameter *view-tmpl* #P"../template/console.tmpl")
 
 ;; ==================== External Variables ====================
 (defparameter *log-path* "~/tmp/condor_server.log")
@@ -150,7 +157,7 @@
                 (t (format nil "~2,'0d:~2,'0d:~2,'0d" hour minute second))))))))
 
     
-(defun gen-gui-row (job-obj)
+(defun gen-gui-row (dispatcher-obj job-obj)
   "generate a row for one job in html"
   (list :job-id (format nil "~a" (job-id job-obj))
         :row-id (format nil "~a" (job-id job-obj))
@@ -164,6 +171,9 @@
                                                      (job-completion-time-stamp job-obj)))
                         (t (decode-universal-time-diff (job-start-time-stamp job-obj)
                                                        (get-universal-time))))
+        :report-url (when (>= (job-status job-obj) 1)
+                        (format nil "view?name=~a&jobid=~a" (dispatcher-name dispatcher-obj)
+                                (job-id job-obj)))
         :status (cond ((= (job-status job-obj) 0) "pending")
                       ((= (job-status job-obj) 1) "processing")
                       ((= (job-status job-obj) 2) "complete")
@@ -176,13 +186,27 @@
                             ((= (job-status job-obj) -1) "red"))))
 
 (defun gen-gui-html (dispatcher-obj)
-  "generate html file from template for one dispatcher"
+  "generate gui html file from template for one dispatcher"
   (with-output-to-string (html-template:*default-template-output*)
     (html-template:fill-and-print-template 
      *gui-tmpl*
      (list :row-num (length (dispatcher-pool dispatcher-obj)) 
            :rows (loop for item across (dispatcher-pool dispatcher-obj)
-                    collect (gen-gui-row item))))))
+                    collect (gen-gui-row dispatcher-obj item))))))
+
+(defun gen-view-html (file-name)
+  "generate view html file for one job"
+  (with-output-to-string (html-template:*default-template-output*)
+    (html-template:fill-and-print-template 
+     *view-tmpl*
+     (list :rows (with-open-file (*standard-input* file-name
+                                                   :direction :input)
+                   (loop for line = (read-line nil nil 'eof)
+                        until (eq line 'eof)
+                        collect (list :line line)))))))
+
+
+
         
   
   
@@ -430,6 +454,82 @@
                           (log-to-file 'error "upload: upload failed for job *~a*:~a."
                                        name jobid)
                           (signal-error))))))))))
+
+
+;; +----------------------------------------
+;; | Handling console output submission
+;; | Input: dispatcher name, job id, the multipart form
+;; | Output: "ok" on successul call and "error" otherwise
+;; +----------------------------------------
+(hunchentoot:define-easy-handler (report-handler :uri "/report") (name jobid)
+  (setf (hunchentoot:content-type*) "text/plain")
+  (let ((d (gethash name *dispatchers*)))
+    (if (null d)
+        (progn
+          ;; dispatcher not founds
+          (log-to-file 'error "report: dispatcher *~a* does not exist." name)
+          (signal-error))
+        (if (<= (length (dispatcher-pool d)) (parse-integer jobid))
+            (progn
+              ;; jobid has not been created yet
+              (log-to-file 'error "report: dispatcher *~a* does not spawn job ~a."
+                           name jobid)
+              (signal-error))
+            (let ((post-data (hunchentoot:post-parameter "data")))
+              (if (null post-data)
+                  (progn
+                    ;; post-data not exist
+                    (log-to-file 'error "report: *~a*:~a, post-data does not exist."
+                                 name jobid)
+                    (signal-error))
+                  (let ((path (first post-data)))
+                    (if (copy-file 
+                         path 
+                         (merge-pathnames (format nil "report/~a/console.output" jobid)
+                                          (dispatcher-location d)))
+                        (progn
+                          ;; successful
+                          (log-to-file 'done "report: received report for job *~a*:~a!"
+                                       name jobid)
+                          (signal-ok))
+                        (progn 
+                          ;; copy is not successful
+                          (log-to-file 'error "report: upload report failed for job *~a*:~a."
+                                       name jobid)
+                          (signal-error))))))))))
+
+
+;; +----------------------------------------
+;; | Handler for viewing console report
+;; | Input: dispatcher name, job id
+;; | Output: the console report
+;; +----------------------------------------
+(hunchentoot:define-easy-handler (view-handler :uri "/view") (name jobid)
+  (setf (hunchentoot:content-type*) "text/html")
+  (let ((d (gethash name *dispatchers*)))
+    (if (null d)
+        (progn
+          ;; dispatcher not founds
+          (log-to-file 'error "view: dispatcher *~a* does not exist." name)
+          (signal-error))
+        (if (<= (length (dispatcher-pool d)) (parse-integer jobid))
+            (progn
+              ;; jobid has not been created yet
+              (log-to-file 'error "view: dispatcher *~a* does not spawn job ~a."
+                           name jobid)
+              (signal-error))
+            (let ((path (merge-pathnames (format nil "report/~a/console.output" jobid)
+                                         (dispatcher-location d))))
+              (if (cl-fad:file-exists-p path)
+                  (progn
+                    (log-to-file 'done "view: console report for *~a*:~a trasmitted."
+                                 name jobid)
+                    (gen-view-html path))
+                  (progn
+                    (log-to-file 'done "view: job concole report for *~a*:~a hasn't been established yet."
+                                 name jobid)
+                    "no report available.")))))))
+                    
                      
 
 (hunchentoot:define-easy-handler (test-handler :uri "/test") ()
@@ -442,8 +542,10 @@
 
 (defun start-server (&optional (port 4242))
   "Start the server with/without a specific port"
+  ;; Copy the icons
   (ensure-directories-exist (merge-pathnames "imgs/fake" *server-base*))
   (copy-files "../imgs/" (merge-pathnames "imgs/" *server-base*))
+  ;; start server
   (setf *acceptor* (make-instance 'hunchentoot:easy-acceptor :port port
                                   :document-root *server-base*))
   (hunchentoot:start *acceptor*)

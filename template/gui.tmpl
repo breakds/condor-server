@@ -46,6 +46,7 @@
         monitor.addColumn('string', 'Machine' );
         monitor.addColumn('string', 'Start Time' );
         monitor.addColumn('string', 'Duration' );
+        monitor.addColumn('string', 'Console' );
       
         monitor.addRows( <!-- TMPL_VAR row-num --> );
         <!-- TMPL_LOOP rows -->
@@ -55,6 +56,11 @@
         monitor.setCell( <!-- TMPL_VAR row-id -->, 3, icon<!-- TMPL_VAR status --> + "<!-- TMPL_VAR ip -->");
         monitor.setCell( <!-- TMPL_VAR row-id -->, 4, "<!-- TMPL_VAR start-time -->" );
         monitor.setCell( <!-- TMPL_VAR row-id -->, 5, "<!-- TMPL_VAR duration -->" );
+        <!-- TMPL_IF report-url -->
+        monitor.setCell( <!-- TMPL_VAR row-id -->, 6, '<a href="<!-- TMPL_VAR report-url -->"> report </a>' );
+        <!-- TMPL_ELSE -->
+        monitor.setCell( <!-- TMPL_VAR row-id -->, 6, '' );
+        <!-- /TMPL_IF -->
         <!-- /TMPL_LOOP -->
 
 

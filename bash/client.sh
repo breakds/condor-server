@@ -38,8 +38,22 @@ until [[ ${response[0]} -eq -1 ]]; do
         wget ${server}/${dispatcher}/input/${jobid}/${response[$i]}
         chmod +x ${response[$i]}
     done
+    
+    rm -f console.output
+    eval "./runprocess.sh&" &> console.output
+    pid=$!
 
-    ./runprocess.sh
+    while sleep 1; do
+        kill -0 ${pid}
+        if [[ $? -eq 0 ]]; then
+            # report to server
+            curl -F "name=${dispatcher}" -F "jobid=${jobid}" -F "data=@console.output" ${server}/report
+        else
+            break
+        fi
+    done
+    # last report
+    curl -F "name=${dispatcher}" -F "jobid=${jobid}" -F "data=@console.output" ${server}/report
     
     # signal complete
     curl --data "name=${dispatcher}&jobid=${jobid}" ${server}/sigcomplete
