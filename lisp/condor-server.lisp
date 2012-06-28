@@ -28,7 +28,8 @@
 (defmethod dispatcher-clear-reports (d)
   "delete all the report files"
   (cl-fad:delete-directory-and-files (merge-pathnames "report"
-                                                      (dispatcher-location d))))
+                                                      (dispatcher-location d)
+                                                      :if-does-not-exist :ignore)))
 
 (defmethod dispatcher-init (d)
   "initialization of dispatcher"
