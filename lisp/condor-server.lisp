@@ -123,7 +123,7 @@
                                                 (tobe (merge-pathnames filename to)))
                                            (when filename
                                              (ensure-directories-exist tobe)
-                                             (cl-fad:copy-file x tobe))))))
+                                             (cl-fad:copy-file x tobe :overwrite t))))))
     t))
 
 (defun copy-file (from to)
@@ -442,6 +442,8 @@
 
 (defun start-server (&optional (port 4242))
   "Start the server with/without a specific port"
+  (ensure-directories-exist (merge-pathnames "imgs/fake" *server-base*))
+  (copy-files "../imgs/" (merge-pathnames "imgs/" *server-base*))
   (setf *acceptor* (make-instance 'hunchentoot:easy-acceptor :port port
                                   :document-root *server-base*))
   (hunchentoot:start *acceptor*)

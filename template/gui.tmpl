@@ -24,12 +24,21 @@
       .center-text{
       text-align:center;
       }
+      img.middle{
+      padding-bottom: 4px;
+      vertical-align: middle;
+      }
     </style>
     <script type='text/javascript' src='https://www.google.com/jsapi'></script>
     <script type='text/javascript'>
       google.load('visualization', '1', {packages:['table']});
       google.setOnLoadCallback(drawTable);
       function drawTable() {
+        var iconprocessing = "<img src=imgs/processing.png width=13 height=12 class=middle />";
+        var iconcomplete = "<img src=imgs/complete.png width=13 height=12 class=middle />";
+        var iconreceived = "<img src=imgs/complete.png width=13 height=12 class=middle />";
+        var iconpending = "";
+        var iconerror = "";
         var monitor = new google.visualization.DataTable();
         monitor.addColumn('string', 'Check');
         monitor.addColumn('number', 'JobID');
@@ -37,13 +46,13 @@
         monitor.addColumn('string', 'Machine' );
         monitor.addColumn('string', 'Start Time' );
         monitor.addColumn('string', 'Duration' );
-        
+      
         monitor.addRows( <!-- TMPL_VAR row-num --> );
         <!-- TMPL_LOOP rows -->
         monitor.setCell( <!-- TMPL_VAR row-id -->, 0, '<input type="checkbox" align="center" />' );
         monitor.setCell( <!-- TMPL_VAR row-id -->, 1, <!-- TMPL_VAR job-id -->, null, {"className" : "center-text"} );
         monitor.setCell( <!-- TMPL_VAR row-id -->, 2, "<!-- TMPL_VAR status -->", null, { "className" : "bold-<!-- TMPL_VAR status-color -->-font center-text"} );
-        monitor.setCell( <!-- TMPL_VAR row-id -->, 3, "<!-- TMPL_VAR ip -->" );
+        monitor.setCell( <!-- TMPL_VAR row-id -->, 3, icon<!-- TMPL_VAR status --> + "<!-- TMPL_VAR ip -->");
         monitor.setCell( <!-- TMPL_VAR row-id -->, 4, "<!-- TMPL_VAR start-time -->" );
         monitor.setCell( <!-- TMPL_VAR row-id -->, 5, "<!-- TMPL_VAR duration -->" );
         <!-- /TMPL_LOOP -->
