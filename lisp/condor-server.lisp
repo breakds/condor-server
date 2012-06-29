@@ -76,9 +76,9 @@
 (defparameter *view-tmpl* #P"../template/console.tmpl")
 
 ;; ==================== External Variables ====================
-(defparameter *log-path* "~/tmp/condor_server.log")
+(defparameter *log-path* "/scratch.1/breakds/condor/base/log/condor_server.log")
 ;; the trailing "/" is very important in *server-base*
-(defparameter *server-base* #P"~/tmp/serverbase/")
+(defparameter *server-base* #P"/scratch.1/breakds/condor/base/")
 
 
 ;; ==================== Aux Functions ===================
@@ -142,7 +142,10 @@
 
 (defun pathname-fullname (path)
   "get the full file name from a file path"
-  (concatenate 'string (pathname-name path) "." (pathname-type path)))
+  (if (pathname-type path)
+      (concatenate 'string (pathname-name path) "." (pathname-type path))
+      (pathname-name path)))
+  
 
 
                         
