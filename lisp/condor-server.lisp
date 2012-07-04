@@ -220,6 +220,42 @@
 
 
 ;; ==================== Handlers ====================
+(defmacro when-valid-dispatcher (handler-name (d name) &body body)
+  "check whether dispatcher with name 'name' exists. If it does not
+exist, signal an error. Otherwise 'body' will be executed. "
+  (let ((n (gensym)))
+    `(let* ((,n ,name)
+            (,d (gethash ,n *dispatchers*)))
+       (if (null ,d)
+           (progn
+             ;; dispatcher not found
+             (log-to-file 'error "~a: dispatcher *~a* does not exist." ,handler-name ,n)
+             (signal-error))
+           (progn
+             ,@body)))))
+
+(defmacro when-valid-dispatcher-and-id (handler-name (dispatcher name) id &body body)
+  "check whether job with with dispatcher name 'name' and id 'id'
+exists. If it does not exist, signal an error. Otherwise 'body' will
+be executed. "
+  (let ((h (gensym))
+        (j (gensym))
+        (n (gensym)))
+    `(let ((,h ,handler-name)
+           (,j ,id)
+           (,n ,name))
+       (when-valid-dispatcher ,h (,dispatcher ,n) 
+         (if (<= (length (dispatcher-pool ,dispatcher)) (parse-integer ,j))
+             (progn
+               ;; jobid has not been created yet
+               (log-to-file 'error "~a: dispatcher *~a* does not spawn job ~a."
+                            ,h ,n ,j)
+               (signal-error))
+             (progn
+               ,@body))))))
+         
+         
+
 ;; +----------------------------------------
 ;; | Create Dispatcher:
 ;; | Input: Dispatcher's name (name)
@@ -297,24 +333,20 @@
 ;; +----------------------------------------
 (hunchentoot:define-easy-handler (register :uri "/register") (name)
   (setf (hunchentoot:content-type*) "text/plain")
-  (let ((d (gethash name *dispatchers*)))
-    (if (null d)
-        (progn
-          ;; dispatcher not found
-          (log-to-file 'error "register: dispatcher *~a* does not exist." name)
-          (signal-error))
-        (let* ((local-path (merge-pathnames "shared"
-                                            (dispatcher-location d)))
-               (file-list (cl-fad:list-directory local-path)))
-          ;; register node
-          (unless (gethash (hunchentoot:real-remote-addr) (dispatcher-node-map d))
-            (push-back (hunchentoot:real-remote-addr) (dispatcher-nodes d))
-            (setf (gethash (hunchentoot:real-remote-addr) (dispatcher-node-map d))
-                  (1- (length (dispatcher-nodes d)))))
-          (log-to-file 'done "register: slot registered.")
-          (format nil "ok~%~{~a~%~}"
-                  (loop for file in file-list
-                     collect (pathname-fullname file)))))))
+  (when-valid-dispatcher "register" (d name)
+    (let* ((local-path (merge-pathnames "shared"
+                                        (dispatcher-location d)))
+           (file-list (cl-fad:list-directory local-path)))
+      ;; register node
+      (unless (gethash (hunchentoot:real-remote-addr) (dispatcher-node-map d))
+        (push-back (hunchentoot:real-remote-addr) (dispatcher-nodes d))
+        (setf (gethash (hunchentoot:real-remote-addr) (dispatcher-node-map d))
+              (1- (length (dispatcher-nodes d)))))
+      (log-to-file 'done "register: slot registered.")
+      (format nil "ok~%~{~a~%~}"
+              (loop for file in file-list
+                 collect (pathname-fullname file))))))
+
 
 
 
@@ -397,23 +429,11 @@
 ;; +----------------------------------------
 (hunchentoot:define-easy-handler (sig-complete :uri "/sigcomplete") (name jobid)
   (setf (hunchentoot:content-type*) "text/plain")
-  (let ((d (gethash name *dispatchers*)))
-    (if (null d)
-        (progn
-          ;; dispatcher not founds
-          (log-to-file 'error "sigcomplete: dispatcher *~a* does not exist." name)
-          (signal-error))
-        (if (<= (length (dispatcher-pool d)) (parse-integer jobid))
-            (progn
-              ;; jobid has not been created yet
-              (log-to-file 'error "sigcomplete: dispatcher *~a* does not spawn job ~a."
-                           name jobid)
-              (signal-error))
-            (progn
-              (dispatcher-set-status d (parse-integer jobid) 'complete)
-              (log-to-file 'done "sigcomplete: job *~a*:~a complete!" name jobid)
-              (signal-ok))))))
-                        
+  (when-valid-dispatcher-and-id "sigcomplete" (d name) jobid
+    (dispatcher-set-status d (parse-integer jobid) 'complete)
+    (log-to-file 'done "sigcomplete: job *~a*:~a complete!" name jobid)
+    (signal-ok)))
+
 
 
 ;; +----------------------------------------
@@ -423,41 +443,30 @@
 ;; +----------------------------------------
 (hunchentoot:define-easy-handler (upload-handler :uri "/upload") (name jobid)
   (setf (hunchentoot:content-type*) "text/plain")
-  (let ((d (gethash name *dispatchers*)))
-    (if (null d)
-        (progn
-          ;; dispatcher not founds
-          (log-to-file 'error "upload: dispatcher *~a* does not exist." name)
-          (signal-error))
-        (if (<= (length (dispatcher-pool d)) (parse-integer jobid))
-            (progn
-              ;; jobid has not been created yet
-              (log-to-file 'error "upload: dispatcher *~a* does not spawn job ~a."
-                           name jobid)
-              (signal-error))
-            (let ((post-data (hunchentoot:post-parameter "data")))
-              (if (null post-data)
-                  (progn
-                    ;; post-data not exist
-                    (log-to-file 'error "upload: *~a*:~a, post-data does not exist."
-                                 name jobid)
-                    (signal-error))
-                  (let ((path (first post-data)))
-                    (if (copy-file 
-                         path 
-                         (merge-pathnames (format nil "output/~a.tar.gz" jobid)
-                                          (dispatcher-location d)))
-                        (progn
-                          ;; successful
-                          (log-to-file 'done "upload: received file for job *~a*:~a!"
-                                       name jobid)
-                          (dispatcher-set-status d (parse-integer jobid) 'received)
-                          (signal-ok))
-                        (progn 
-                          ;; copy is not successful
-                          (log-to-file 'error "upload: upload failed for job *~a*:~a."
-                                       name jobid)
-                          (signal-error))))))))))
+  (when-valid-dispatcher-and-id "upload" (d name) jobid
+    (let ((post-data (hunchentoot:post-parameter "data")))
+      (if (null post-data)
+          (progn
+            ;; post-data not exist
+            (log-to-file 'error "upload: *~a*:~a, post-data does not exist."
+                         name jobid)
+            (signal-error))
+          (let ((path (first post-data)))
+            (if (copy-file 
+                 path 
+                 (merge-pathnames (format nil "output/~a.tar.gz" jobid)
+                                  (dispatcher-location d)))
+                (progn
+                  ;; successful
+                  (log-to-file 'done "upload: received file for job *~a*:~a!"
+                               name jobid)
+                  (dispatcher-set-status d (parse-integer jobid) 'received)
+                  (signal-ok))
+                (progn 
+                  ;; copy is not successful
+                  (log-to-file 'error "upload: upload failed for job *~a*:~a."
+                               name jobid)
+                  (signal-error))))))))
 
 
 ;; +----------------------------------------
@@ -467,40 +476,29 @@
 ;; +----------------------------------------
 (hunchentoot:define-easy-handler (report-handler :uri "/report") (name jobid)
   (setf (hunchentoot:content-type*) "text/plain")
-  (let ((d (gethash name *dispatchers*)))
-    (if (null d)
-        (progn
-          ;; dispatcher not founds
-          (log-to-file 'error "report: dispatcher *~a* does not exist." name)
-          (signal-error))
-        (if (<= (length (dispatcher-pool d)) (parse-integer jobid))
-            (progn
-              ;; jobid has not been created yet
-              (log-to-file 'error "report: dispatcher *~a* does not spawn job ~a."
-                           name jobid)
-              (signal-error))
-            (let ((post-data (hunchentoot:post-parameter "data")))
-              (if (null post-data)
-                  (progn
-                    ;; post-data not exist
-                    (log-to-file 'error "report: *~a*:~a, post-data does not exist."
-                                 name jobid)
-                    (signal-error))
-                  (let ((path (first post-data)))
-                    (if (copy-file 
-                         path 
-                         (merge-pathnames (format nil "report/~a/console.output" jobid)
-                                          (dispatcher-location d)))
-                        (progn
-                          ;; successful
-                          (log-to-file 'done "report: received report for job *~a*:~a!"
-                                       name jobid)
-                          (signal-ok))
-                        (progn 
-                          ;; copy is not successful
-                          (log-to-file 'error "report: upload report failed for job *~a*:~a."
-                                       name jobid)
-                          (signal-error))))))))))
+  (when-valid-dispatcher-and-id "report" (d name) jobid
+    (let ((post-data (hunchentoot:post-parameter "data")))
+      (if (null post-data)
+          (progn
+            ;; post-data not exist
+            (log-to-file 'error "report: *~a*:~a, post-data does not exist."
+                         name jobid)
+            (signal-error))
+          (let ((path (first post-data)))
+            (if (copy-file 
+                 path 
+                 (merge-pathnames (format nil "report/~a/console.output" jobid)
+                                  (dispatcher-location d)))
+                (progn
+                  ;; successful
+                  (log-to-file 'done "report: received report for job *~a*:~a!"
+                               name jobid)
+                  (signal-ok))
+                (progn 
+                  ;; copy is not successful
+                  (log-to-file 'error "report: upload report failed for job *~a*:~a."
+                               name jobid)
+                  (signal-error))))))))
 
 
 ;; +----------------------------------------
@@ -510,29 +508,18 @@
 ;; +----------------------------------------
 (hunchentoot:define-easy-handler (view-handler :uri "/view") (name jobid)
   (setf (hunchentoot:content-type*) "text/html")
-  (let ((d (gethash name *dispatchers*)))
-    (if (null d)
-        (progn
-          ;; dispatcher not founds
-          (log-to-file 'error "view: dispatcher *~a* does not exist." name)
-          (signal-error))
-        (if (<= (length (dispatcher-pool d)) (parse-integer jobid))
-            (progn
-              ;; jobid has not been created yet
-              (log-to-file 'error "view: dispatcher *~a* does not spawn job ~a."
-                           name jobid)
-              (signal-error))
-            (let ((path (merge-pathnames (format nil "report/~a/console.output" jobid)
-                                         (dispatcher-location d))))
-              (if (cl-fad:file-exists-p path)
-                  (progn
-                    (log-to-file 'done "view: console report for *~a*:~a trasmitted."
-                                 name jobid)
-                    (gen-view-html path))
-                  (progn
-                    (log-to-file 'done "view: job concole report for *~a*:~a hasn't been established yet."
-                                 name jobid)
-                    "no report available.")))))))
+  (when-valid-dispatcher-and-id "view" (d name) jobid
+    (let ((path (merge-pathnames (format nil "report/~a/console.output" jobid)
+                                 (dispatcher-location d))))
+      (if (cl-fad:file-exists-p path)
+          (progn
+            (log-to-file 'done "view: console report for *~a*:~a trasmitted."
+                         name jobid)
+            (gen-view-html path))
+          (progn
+            (log-to-file 'done "view: job concole report for *~a*:~a hasn't been established yet."
+                         name jobid)
+            "no report available.")))))
                     
                      
 
