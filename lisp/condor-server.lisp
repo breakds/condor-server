@@ -147,6 +147,21 @@
       (pathname-name path)))
   
 
+;; string parser
+(defun split-integers (str &optional (delim #\|))
+  "Parse integer list in delimiter-separated string."
+  (labels ((split-integers-iter (s accu)
+             (let ((i (position delim s)))
+               (format t "~a" i)
+               (if i
+                   (split-integers-iter (subseq s (1+ i))
+                                        (cons (parse-integer (subseq s 0 i))
+                                              accu))
+                   (reverse (cons (parse-integer s) accu))))))
+    (split-integers-iter str nil)))
+        
+         
+    
 
                         
 ;; Template Generation/Fill
@@ -194,7 +209,8 @@
   (with-output-to-string (html-template:*default-template-output*)
     (html-template:fill-and-print-template 
      *gui-tmpl*
-     (list :row-num (length (dispatcher-pool dispatcher-obj)) 
+     (list :dispatcher-name (dispatcher-name dispatcher-obj)
+           :row-num (length (dispatcher-pool dispatcher-obj)) 
            :rows (loop for item across (dispatcher-pool dispatcher-obj)
                     collect (gen-gui-row dispatcher-obj item))))))
 
@@ -309,6 +325,27 @@ be executed. "
                       (signal-ok))
               (t (log-to-file 'error "add: dispatcher *~a* does not exist." name)
                  (signal-error))))))
+
+
+;; +----------------------------------------
+;; | Resubmit job to Dispatcher:
+;; | Input: name of dispatcher, job id
+;; | Output: "ok" upon successul call and "error" otherwise
+;; +----------------------------------------
+(hunchentoot:define-easy-handler (resubmit-job :uri "/resubmit") (name jobids)
+  (setf (hunchentoot:content-type*) "text/plain")
+  (loop for jobid in (split-integers jobids)
+     do (when-valid-dispatcher-and-id "resubmit" (d name) (format nil "~a" jobid)
+          (let ((j (aref (dispatcher-pool d) jobid)))
+            (setf (job-status j) 0))))
+  ;; redirect to gui
+  (hunchentoot:redirect 
+   (format nil "http://~a/gui?name=~a" (hunchentoot:host) name)))
+
+
+                                
+                                
+
 
 
 ;; +----------------------------------------

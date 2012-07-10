@@ -29,10 +29,31 @@
       vertical-align: middle;
       }
     </style>
+    <script type='text/javascript'>
+      function resubmit() {
+        var count = 0;
+        var jobids = "";
+        for ( i=0; i<jobNum; i++ ) {
+          checkBox = document.getElementById( "check" + i );
+          if ( checkBox.checked ) {
+             if ( 0 == count ) {
+                count = 1;
+                jobids = jobids + i;
+             } else {
+                count++;
+                jobids = jobids + "|" + i;
+             }
+          }
+        }
+        window.location = "http://" + window.location.hostname + ":" + window.location.port + "/resubmit?name=" + dispatcher + "&jobids=" + jobids;
+      }
+    </script>
     <script type='text/javascript' src='https://www.google.com/jsapi'></script>
     <script type='text/javascript'>
       google.load('visualization', '1', {packages:['table']});
       google.setOnLoadCallback(drawTable);
+      var jobNum = 0;
+      var dispatcher = "";
       function drawTable() {
         var iconprocessing = "<img src=imgs/processing.png width=13 height=12 class=middle />";
         var iconcomplete = "<img src=imgs/complete.png width=13 height=12 class=middle />";
@@ -47,10 +68,11 @@
         monitor.addColumn('string', 'Start Time' );
         monitor.addColumn('string', 'Duration' );
         monitor.addColumn('string', 'Console' );
-      
+        dispatcher = "<!-- TMPL_VAR dispatcher-name -->";
+        jobNum = <!-- TMPL_VAR row-num -->;
         monitor.addRows( <!-- TMPL_VAR row-num --> );
         <!-- TMPL_LOOP rows -->
-        monitor.setCell( <!-- TMPL_VAR row-id -->, 0, '<input type="checkbox" align="center" />' );
+        monitor.setCell( <!-- TMPL_VAR row-id -->, 0, '<input type="checkbox" align="center" id="check<!-- TMPL_VAR job-id -->"/>' );
         monitor.setCell( <!-- TMPL_VAR row-id -->, 1, <!-- TMPL_VAR job-id -->, null, {"className" : "center-text"} );
         monitor.setCell( <!-- TMPL_VAR row-id -->, 2, "<!-- TMPL_VAR status -->", null, { "className" : "bold-<!-- TMPL_VAR status-color -->-font center-text"} );
         monitor.setCell( <!-- TMPL_VAR row-id -->, 3, icon<!-- TMPL_VAR status --> + "<!-- TMPL_VAR ip -->");
@@ -74,6 +96,9 @@
   </head>
 
   <body>
+    <div id='buttons'>
+      <input type="button" name="resubmit" value="Resubmit" onClick="resubmit()">
+    </div>
     <div id='table_div'></div>
   </body>
 </html>
