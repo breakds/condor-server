@@ -363,8 +363,8 @@ be executed. "
 
 ;; +----------------------------------------
 ;; | Resubmit job to Dispatcher:
-;; | Input: name of dispatcher, job id
-;; | Output: "ok" upon successul call and "error" otherwise
+;; | Input: name of dispatcher, job ids
+;; | Output: redirect upon successul call and "error" otherwise
 ;; +----------------------------------------
 (hunchentoot:define-easy-handler (resubmit-job :uri "/resubmit") (name jobids)
   (setf (hunchentoot:content-type*) "text/plain")
@@ -372,6 +372,22 @@ be executed. "
      do (when-valid-dispatcher-and-id "resubmit" (d name) (format nil "~a" jobid)
           (let ((j (aref (dispatcher-pool d) jobid)))
             (setf (job-status j) 0))))
+  ;; redirect to gui
+  (hunchentoot:redirect 
+   (format nil "http://~a/gui?name=~a" (hunchentoot:host) name)))
+
+
+;; +----------------------------------------
+;; | Manully Complete (Remove) pending jobs
+;; | Input: name of dispatcher, job ids
+;; | Output: redirect upon successul call and "error" otherwise
+;; +----------------------------------------
+(hunchentoot:define-easy-handler (resubmit-job :uri "/mute") (name jobids)
+  (setf (hunchentoot:content-type*) "text/plain")
+  (loop for jobid in (split-integers jobids)
+     do (when-valid-dispatcher-and-id "mute" (d name) (format nil "~a" jobid)
+          (let ((j (aref (dispatcher-pool d) jobid)))
+            (setf (job-status j) 2))))
   ;; redirect to gui
   (hunchentoot:redirect 
    (format nil "http://~a/gui?name=~a" (hunchentoot:host) name)))

@@ -50,6 +50,23 @@
         }
         window.location = "http://" + window.location.hostname + ":" + window.location.port + "/resubmit?name=" + dispatcher + "&jobids=" + jobids;
       }
+      function mute() {
+        var count = 0;
+        var jobids = "";
+        for ( i=0; i<jobNum; i++ ) {
+          checkBox = document.getElementById( "check" + i );
+          if ( checkBox.checked ) {
+             if ( 0 == count ) {
+                count = 1;
+                jobids = jobids + i;
+             } else {
+                count++;
+                jobids = jobids + "|" + i;
+             }
+          }
+        }
+        window.location = "http://" + window.location.hostname + ":" + window.location.port + "/mute?name=" + dispatcher + "&jobids=" + jobids;
+      }
     </script>
     <script type='text/javascript' src='https://www.google.com/jsapi'></script>
     <script type='text/javascript'>
@@ -102,6 +119,7 @@
     <div id='buttons'>
       <input type="button" name="gohome" value="Home" onClick="gohome()">
       <input type="button" name="resubmit" value="Resubmit" onClick="resubmit()">
+      <input type="button" name="mute" value="Mute" onClick="mute()">
     </div>
     <div id='table_div'></div>
   </body>
