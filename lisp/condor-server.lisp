@@ -31,6 +31,17 @@
                                                       (dispatcher-location d))
                                                       :if-does-not-exist :ignore))
 
+(defmethod dispatcher-count-pending-jobs (d)
+  "counting pending jobs"
+  (loop for j across (dispatcher-pool d)
+     counting (= 0 (job-status j))))
+
+(defmethod dispatcher-count-jobs (d)
+  "counting jobs"
+  (length (dispatcher-pool d)))
+
+
+
 (defmethod dispatcher-init (d)
   "initialization of dispatcher"
   (dispatcher-clear-reports d)
@@ -74,6 +85,7 @@
 (defparameter *dispatchers* (make-hash-table :test #'equal) "the set of dispacthers")
 (defparameter *gui-tmpl* #P"../template/gui.tmpl")
 (defparameter *view-tmpl* #P"../template/console.tmpl")
+(defparameter *interface-tmpl* #P"../template/interface.tmpl")
 
 ;; ==================== External Variables ====================
 (defparameter *log-path* "/scratch.1/breakds/condor/base/log/condor_server.log")
@@ -214,6 +226,29 @@
            :rows (loop for item across (dispatcher-pool dispatcher-obj)
                     collect (gen-gui-row dispatcher-obj item))))))
 
+(defun gen-interface-html ()
+  "generate interface (homepage) html file from template"
+  (with-output-to-string (html-template:*default-template-output*)
+    (html-template:fill-and-print-template 
+     *interface-tmpl* 
+     (list :rows (loop for key being the hash-keys of *dispatchers*
+                      for i from 0
+                      collect 
+                      (let ((d (gethash key *dispatchers*)))
+                        (list :dispatcher-name key :id i 
+                              :jobs (dispatcher-count-jobs d)
+                              :pending-jobs (dispatcher-count-pending-jobs d))))))))
+
+                                 
+                      
+                      
+
+     ;; (list :dispatcher-name (dispatcher-name dispatcher-obj)
+     ;;       :row-num (length (dispatcher-pool dispatcher-obj)) 
+     ;;       :rows (loop for item across (dispatcher-pool dispatcher-obj)
+     ;;                collect (gen-gui-row dispatcher-obj item))))))
+
+
 (defun gen-view-html (file-name)
   "generate view html file for one job"
   (with-output-to-string (html-template:*default-template-output*)
@@ -279,26 +314,25 @@ be executed. "
 ;; +----------------------------------------
 (hunchentoot:define-easy-handler (create-dispatcher :uri "/create") (name)
   (setf (hunchentoot:content-type*) "text/plain")
-  (if (eq (hunchentoot:request-method*) :GET)
-      (format nil "Sorry, buddy, but /create do not offer a webpage mode.")
-      (cond 
-        ((null name) 
-         (log-to-file 'error "create: name not provided.") 
-         (signal-error))
-        ((gethash name *dispatchers*) 
-         (log-to-file 'error "create: dispacther ~a exists." name)
-         (signal-error))
-        (t (setf (gethash name *dispatchers*) 
-                 (make-dispatcher :name name
-                                  :location (merge-pathnames (format nil "~a/" name)
-                                                             *server-base*)
-                                  :pool (make-vector)
-                                  :nodes (make-vector)
-                                  :node-map (make-hash-table :test #'equal)))
-           (log-to-file 'done "create: dispatcher ~a created successfully." name)
-           (log-to-file 'info "create: dispatcher ~a located at ~a." name 
-                        (dispatcher-location (gethash name *dispatchers*)))
-           (signal-ok)))))
+  (cond 
+    ((null name) 
+     (log-to-file 'error "create: name not provided.") 
+     (signal-error))
+    ((gethash name *dispatchers*) 
+     (log-to-file 'error "create: dispacther ~a exists." name)
+     (signal-error))
+    (t (setf (gethash name *dispatchers*) 
+             (make-dispatcher :name name
+                              :location (merge-pathnames (format nil "~a/" name)
+                                                         *server-base*)
+                              :pool (make-vector)
+                              :nodes (make-vector)
+                              :node-map (make-hash-table :test #'equal)))
+       (log-to-file 'done "create: dispatcher ~a created successfully." name)
+       (log-to-file 'info "create: dispatcher ~a located at ~a." name 
+                    (dispatcher-location (gethash name *dispatchers*)))
+       (hunchentoot:redirect 
+        (format nil "http://~a/gui" (hunchentoot:host))))))
 
 
 ;; +----------------------------------------
@@ -355,11 +389,13 @@ be executed. "
 ;; +----------------------------------------
 (hunchentoot:define-easy-handler (show-gui :uri "/gui") (name)
   (setf (hunchentoot:content-type*) "text/html")
-  (let ((object (gethash name *dispatchers*)))
-    (cond (object (log-to-file 'done "gui: gui request completed.")
-                  (gen-gui-html object))
-          (t (log-to-file 'error "gui: dispatcher *~a* does not exist." name)
-             (signal-error)))))
+  (if (null name)
+      (gen-interface-html)
+      (let ((object (gethash name *dispatchers*)))
+        (cond (object (log-to-file 'done "gui: gui request completed.")
+                      (gen-gui-html object))
+              (t (log-to-file 'error "gui: dispatcher *~a* does not exist." name)
+                 (signal-error))))))
 
 
 ;; +----------------------------------------
@@ -455,8 +491,10 @@ be executed. "
                (push-back (make-job :status 0 :id (length (dispatcher-pool d)))
                           (dispatcher-pool d))
                (log-to-file 'done "reset: dispatcher *~a* picked a job, now have ~a jobs."
-                            name  (length (dispatcher-pool d)))
-          (signal-ok))))))
+                            name  (length (dispatcher-pool d))))
+          (hunchentoot:redirect 
+           (format nil "http://~a/gui" (hunchentoot:host)))))))
+
 
 
 ;; +----------------------------------------

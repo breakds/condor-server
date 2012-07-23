@@ -30,6 +30,9 @@
       }
     </style>
     <script type='text/javascript'>
+      function gohome() {
+      window.location = "http://" + window.location.hostname + ":" + window.location.port + "/gui";
+      }
       function resubmit() {
         var count = 0;
         var jobids = "";
@@ -97,6 +100,7 @@
 
   <body>
     <div id='buttons'>
+      <input type="button" name="gohome" value="Home" onClick="gohome()">
       <input type="button" name="resubmit" value="Resubmit" onClick="resubmit()">
     </div>
     <div id='table_div'></div>

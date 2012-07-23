@@ -1,0 +1,80 @@
+<html>
+  <head>
+    <style type="text/css">
+      .bold-lime-font {
+      color: lime;
+      font-weight: bold;
+      }
+      .bold-blue-font {
+      color: blue;
+      font-weight: bold;
+      }
+      .bold-silver-font {
+      color: silver;
+      font-weight: bold;
+      }
+      .bold-red-font {
+      color: red;
+      font-weight: bold;
+      }
+      .bold-fuchsia-font {
+      color: fuchsia;
+      font-weight: bold;
+      }
+      .center-text{
+      text-align:center;
+      }
+      img.middle{
+      padding-bottom: 4px;
+      vertical-align: middle;
+      }
+    </style>
+    <script type='text/javascript'>
+      function create()
+      {
+      window.location = "http://" + window.location.hostname + ":" + window.location.port + "/create?name=" + document.getElementById('dname').value;
+      }
+      <!-- TMPL_LOOP rows -->
+      function enter<!-- TMPL_VAR id -->()
+      {
+      window.location = "http://" + window.location.hostname + ":" + window.location.port + "/gui?name=<!-- TMPL_VAR dispatcher-name -->";
+      }
+      function reset<!-- TMPL_VAR id -->()
+      {
+      window.location = "http://" + window.location.hostname + ":" + window.location.port + "/reset?name=<!-- TMPL_VAR dispatcher-name -->";
+      }
+      <!-- /TMPL_LOOP -->
+    </script>
+  </head>
+  
+  <body>
+    <div id='buttons'>
+      <input type="text" id="dname" />
+      <input type="button" name="create" value="New Dispatcher" onClick="create()" />
+    </div>
+    <div id='table_div'>
+      <br><br><br>
+      dispatchers:
+      <br>
+      <br>
+      <table border="1">
+        <tr>
+          <th>Dispatcher</th>
+          <th> # jobs </th>
+          <th> # pending </th>
+          <th>------</th>
+          <th>------</th>
+        </tr>
+        <!-- TMPL_LOOP rows -->
+        <tr>
+          <th><!-- TMPL_VAR dispatcher-name --></th>
+          <th><!-- TMPL_VAR jobs --></th>
+          <th><!-- TMPL_VAR pending-jobs --></th>
+          <th><input type="button" name="enter<!-- TMPL_VAR id -->" value="Enter" onClick="enter<!-- TMPL_VAR id -->()"></th>
+          <th><input type="button" name="reset<!-- TMPL_VAR id -->" value="Reset" onClick="reset<!-- TMPL_VAR id -->()"></th>
+        </tr>
+        <!-- /TMPL_LOOP -->
+      </table>
+    </div>
+  </body>
+</html>
