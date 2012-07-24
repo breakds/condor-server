@@ -382,7 +382,7 @@ be executed. "
 ;; | Input: name of dispatcher, job ids
 ;; | Output: redirect upon successul call and "error" otherwise
 ;; +----------------------------------------
-(hunchentoot:define-easy-handler (resubmit-job :uri "/mute") (name jobids)
+(hunchentoot:define-easy-handler (mute-job :uri "/mute") (name jobids)
   (setf (hunchentoot:content-type*) "text/plain")
   (loop for jobid in (split-integers jobids)
      do (when-valid-dispatcher-and-id "mute" (d name) (format nil "~a" jobid)
