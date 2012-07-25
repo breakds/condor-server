@@ -10,7 +10,7 @@ let gap=60
 if [ -f preprocess.sh ];
 then
     echo 'preprocess.sh found. Running ...'
-    ./preprocess.sh
+    ./preprocess.sh ${dispatcher}
 fi
 
 
@@ -60,12 +60,18 @@ until [[ ${response[0]} -eq -1 ]]; do
     curl -F "name=${dispatcher}" -F "jobid=${jobid}" -F "data=@console.output" ${server}/report
     
     # signal complete
-    curl --data "name=${dispatcher}&jobid=${jobid}" ${server}/sigcomplete
-    
-    # send output back
-    if [ -f output.tar.gz ]; then
-        curl -F "name=${dispatcher}" -F "jobid=${jobid}" -F "data=@output.tar.gz" ${server}/upload
+    if [[ $(tar -tvf output.tar.gz | wc -l) -eq 0 ]]; then
+        curl --data "name=${dispatcher}&jobid=${jobid}" ${server}/sigfailure
+    else
+        curl --data "name=${dispatcher}&jobid=${jobid}" ${server}/sigcomplete
+        # send output back
+        if [ -f output.tar.gz ]; then
+            curl -F "name=${dispatcher}" -F "jobid=${jobid}" -F "data=@output.tar.gz" ${server}/upload
+        fi
     fi
+
+    
+
 
     # clean-up
     for i in $(seq ${maxsub}); do

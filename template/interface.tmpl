@@ -34,6 +34,10 @@
       {
       window.location = "http://" + window.location.hostname + ":" + window.location.port + "/create?name=" + document.getElementById('dname').value;
       }
+      function updatebase()
+      {
+      window.location = "http://" + window.location.hostname + ":" + window.location.port + "/updatebase?path=" + document.getElementById('serverbase').value;
+      }
       <!-- TMPL_LOOP rows -->
       function enter<!-- TMPL_VAR id -->()
       {
@@ -48,13 +52,34 @@
   </head>
   
   <body>
-    <div id='buttons'>
+    <b>Condor Server</b> running on 
+    <script type="text/javascript">
+      document.write( window.location.hostname + ":" + window.location.port );
+    </script>
+    <hr>
+    <div id="create">
       <input type="text" id="dname" />
       <input type="button" name="create" value="New Dispatcher" onClick="create()" />
     </div>
+    <hr>
+    <b> Environment Settings </b>
+    <br>
+      <table>
+        <tr>
+          <td> Server Base: </td>
+          <td> <input type="text" id="serverbase" value="<!-- TMPL_VAR server-base -->" size="30" /> </td>
+          <td> <input type="button" name="updatebase" value="Update" onClick="updatebase()" /> 
+            (a trailing "/" is necessary here) </td>
+        </tr>
+        <tr>
+          <td> Logs: </td>
+          <td> <input type="text" id="logpath" value="<!-- TMPL_VAR log-path -->" size="50" /> </td>
+          <td> <input type="button" name="updatelogpath" value="Update" onClick="updatelogpath()" /> </td>
+        </tr>
+      </table>
+    <hr>
     <div id='table_div'>
-      <br><br><br>
-      dispatchers:
+      <b> dispatchers: </b>
       <br>
       <br>
       <table border="1">
@@ -62,8 +87,8 @@
           <th>Dispatcher</th>
           <th> # jobs </th>
           <th> # pending </th>
-          <th>------</th>
-          <th>------</th>
+          <th></th>
+          <th></th>
         </tr>
         <!-- TMPL_LOOP rows -->
         <tr>

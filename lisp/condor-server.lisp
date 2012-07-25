@@ -172,8 +172,6 @@
                    (reverse (cons (parse-integer s) accu))))))
     (split-integers-iter str nil)))
         
-         
-    
 
                         
 ;; Template Generation/Fill
@@ -231,7 +229,9 @@
   (with-output-to-string (html-template:*default-template-output*)
     (html-template:fill-and-print-template 
      *interface-tmpl* 
-     (list :rows (loop for key being the hash-keys of *dispatchers*
+     (list :server-base *server-base*
+           :log-path *log-path*
+           :rows (loop for key being the hash-keys of *dispatchers*
                       for i from 0
                       collect 
                       (let ((d (gethash key *dispatchers*)))
@@ -304,6 +304,23 @@ be executed. "
                (signal-error))
              (progn
                ,@body))))))
+
+
+
+;; +----------------------------------------
+;; | Parameter Setting: server-base
+;; | Input: new server-base path
+;; | Output: redirect upon successul call and "error" otherwise
+;; +----------------------------------------
+(hunchentoot:define-easy-handler (update-server-base :uri "/updatebase") (path)
+  (setf (hunchentoot:content-type*) "text/plain")
+  (setf *server-base* path)
+  (ensure-directories-exist (merge-pathnames "imgs/fake" *server-base*))
+  (copy-files "../imgs/" (merge-pathnames "imgs/" *server-base*))
+  ;; redirect to gui
+  (hunchentoot:redirect 
+   (format nil "http://~a/gui" (hunchentoot:host))))
+
          
          
 
@@ -523,6 +540,19 @@ be executed. "
   (when-valid-dispatcher-and-id "sigcomplete" (d name) jobid
     (dispatcher-set-status d (parse-integer jobid) 'complete)
     (log-to-file 'done "sigcomplete: job *~a*:~a complete!" name jobid)
+    (signal-ok)))
+
+
+;; +----------------------------------------
+;; | Signal Failure of job
+;; | Input: dispatcher name, job id
+;; | Output: "ok" upon successul call and "error" otherwise
+;; +----------------------------------------
+(hunchentoot:define-easy-handler (sig-failure :uri "/sigfailure") (name jobid)
+  (setf (hunchentoot:content-type*) "text/plain")
+  (when-valid-dispatcher-and-id "sigfailure" (d name) jobid
+    (dispatcher-set-status d (parse-integer jobid) 'failure)
+    (log-to-file 'done "sigfailure: job *~a*:~a failed ..." name jobid)
     (signal-ok)))
 
 
