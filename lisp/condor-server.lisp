@@ -55,7 +55,8 @@
         ((eq st 'complete) (setf (job-status (aref (dispatcher-pool d) jobid)) 2
                                  (job-completion-time-stamp (aref (dispatcher-pool d) jobid)) (get-universal-time)))
         ((eq st 'received) (setf (job-status (aref (dispatcher-pool d) jobid)) 3))
-        (t (setf (job-status (aref (dispatcher-pool d) jobid)) -1))))
+        (t (setf (job-status (aref (dispatcher-pool d) jobid)) -1
+                 (job-completion-time-stamp (aref (dispatcher-pool d) jobid)) (get-universal-time)))))
 
     
 
@@ -195,12 +196,12 @@
                         ""
                         (time-stamp (job-start-time-stamp job-obj)))
         :duration (cond ((= (job-start-time-stamp job-obj) 0) "")
-                        ((>= (job-status job-obj) 2) 
+                        ((or (>= (job-status job-obj) 2) (= (job-status job-obj) -1))
                          (decode-universal-time-diff (job-start-time-stamp job-obj)
                                                      (job-completion-time-stamp job-obj)))
                         (t (decode-universal-time-diff (job-start-time-stamp job-obj)
                                                        (get-universal-time))))
-        :report-url (when (>= (job-status job-obj) 1)
+        :report-url (when (or (>= (job-status job-obj) 1) (= (job-status job-obj) -1))
                         (format nil "view?name=~a&jobid=~a" (dispatcher-name dispatcher-obj)
                                 (job-id job-obj)))
         :status (cond ((= (job-status job-obj) 0) "pending")

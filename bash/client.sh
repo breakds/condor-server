@@ -1,19 +1,11 @@
 #! /bin/bash
 
-# need to fill those variables
+# takes 2 parameters
 # ======================================================================
-server=http://emperor.cs.wisc.edu:4242
-dispatcher=first
+server=$1
+dispatcher=$2
 let gap=60
 # ======================================================================
-
-if [ -f preprocess.sh ];
-then
-    echo 'preprocess.sh found. Running ...'
-    ./preprocess.sh ${dispatcher}
-fi
-
-
 
 # register slot
 response=($(curl --silent --data "name=${dispatcher}" ${server}/register))
@@ -28,6 +20,12 @@ if [[ ${response[0]} = "ok" ]]; then
     done
 fi
 
+# preprocessing
+if [ -f preprocess.sh ];
+then
+    echo 'preprocess.sh found. Running ...'
+    ./preprocess.sh ${dispatcher}
+fi
 
 response=($(curl --silent --data "name=${dispatcher}" ${server}/fetch))
 until [[ ${response[0]} -eq -1 ]]; do
