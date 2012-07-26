@@ -322,7 +322,20 @@ be executed. "
   (hunchentoot:redirect 
    (format nil "http://~a/gui" (hunchentoot:host))))
 
-         
+
+;; +----------------------------------------
+;; | Parameter Setting: log-path
+;; | Input: new log file path
+;; | Output: redirect upon successul call and "error" otherwise
+;; +----------------------------------------
+(hunchentoot:define-easy-handler (update-log-path :uri "/updatelog") (path)
+  (setf (hunchentoot:content-type*) "text/plain")
+  (setf *log-path* path)
+  (ensure-directories-exist *log-path*)
+  ;; redirect to gui
+  (hunchentoot:redirect 
+   (format nil "http://~a/gui" (hunchentoot:host))))
+
          
 
 ;; +----------------------------------------
@@ -506,7 +519,7 @@ be executed. "
 ;; | Reset dispatcher and will add every job
 ;; |     under *server-base*/<dispatcher name>/input
 ;; | Input: dispatcher name
-;; | Output: "ok" on successul call and "error" otherwise
+;; | Output: redirect on successul call and "error" otherwise
 ;; +----------------------------------------
 (hunchentoot:define-easy-handler (reset-handler :uri "/reset") (name)
   (setf (hunchentoot:content-type*) "text/plain")
@@ -526,6 +539,39 @@ be executed. "
                           (dispatcher-pool d))
                (log-to-file 'done "reset: dispatcher *~a* picked a job, now have ~a jobs."
                             name  (length (dispatcher-pool d))))
+          (hunchentoot:redirect 
+           (format nil "http://~a/gui" (hunchentoot:host)))))))
+
+
+;; +----------------------------------------
+;; | Recover dispatcher from a possible last failed run
+;; | Input: dispatcher name
+;; | Output: redirect on successul call and "error" otherwise
+;; +----------------------------------------
+(hunchentoot:define-easy-handler (recover-handler :uri "/recover") (name)
+  (setf (hunchentoot:content-type*) "text/plain")
+  (let ((d (gethash name *dispatchers*)))
+    (if (null d)
+        (progn
+          ;; dispatcher not found
+          (log-to-file 'error "recover: dispatcher *~a* does not exist." name)
+          (signal-error))
+        (progn
+          (dispatcher-init d)
+          (loop for i from 0 
+             while (cl-fad:directory-exists-p (merge-pathnames (format nil "input/~a/" i)
+                                                               (dispatcher-location d)))
+             do
+               (push-back (make-job :status 0 :id (length (dispatcher-pool d)))
+                          (dispatcher-pool d))
+               (log-to-file 'done "recover: dispatcher *~a* picked a job, now have ~a jobs."
+                            name (length (dispatcher-pool d))))
+          (loop for i below (length (dispatcher-pool d))
+             do (when (cl-fad:file-exists-p (merge-pathnames (format nil "output/~a.tar.gz" i)
+                                                           (dispatcher-location d)))
+                  (progn
+                    (dispatcher-set-status d i 'received)
+                    (log-to-file 'done "recover: dispatcher *~a* found a completed job." name))))
           (hunchentoot:redirect 
            (format nil "http://~a/gui" (hunchentoot:host)))))))
 
@@ -655,9 +701,6 @@ be executed. "
 
 (defun start-server (&optional (port 4242))
   "Start the server with/without a specific port"
-  ;; Copy the icons
-  (ensure-directories-exist (merge-pathnames "imgs/fake" *server-base*))
-  (copy-files "../imgs/" (merge-pathnames "imgs/" *server-base*))
   ;; start server
   (setf *acceptor* (make-instance 'hunchentoot:easy-acceptor :port port
                                   :document-root *server-base*))

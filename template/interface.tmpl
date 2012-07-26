@@ -38,6 +38,10 @@
       {
       window.location = "http://" + window.location.hostname + ":" + window.location.port + "/updatebase?path=" + document.getElementById('serverbase').value;
       }
+      function updatelogpath()
+      {
+      window.location = "http://" + window.location.hostname + ":" + window.location.port + "/updatelog?path=" + document.getElementById('logpath').value;
+      }
       <!-- TMPL_LOOP rows -->
       function enter<!-- TMPL_VAR id -->()
       {
@@ -46,6 +50,10 @@
       function reset<!-- TMPL_VAR id -->()
       {
       window.location = "http://" + window.location.hostname + ":" + window.location.port + "/reset?name=<!-- TMPL_VAR dispatcher-name -->";
+      }
+      function recover<!-- TMPL_VAR id -->()
+      {
+      window.location = "http://" + window.location.hostname + ":" + window.location.port + "/recover?name=<!-- TMPL_VAR dispatcher-name -->";
       }
       <!-- /TMPL_LOOP -->
     </script>
@@ -87,8 +95,9 @@
           <th>Dispatcher</th>
           <th> # jobs </th>
           <th> # pending </th>
-          <th></th>
-          <th></th>
+          <th>-</th>
+          <th>-</th>
+          <th>-</th>
         </tr>
         <!-- TMPL_LOOP rows -->
         <tr>
@@ -97,6 +106,7 @@
           <th><!-- TMPL_VAR pending-jobs --></th>
           <th><input type="button" name="enter<!-- TMPL_VAR id -->" value="Enter" onClick="enter<!-- TMPL_VAR id -->()"></th>
           <th><input type="button" name="reset<!-- TMPL_VAR id -->" value="Reset" onClick="reset<!-- TMPL_VAR id -->()"></th>
+          <th><input type="button" name="recover<!-- TMPL_VAR id -->" value="Recover" onClick="recover<!-- TMPL_VAR id -->()"></th>
         </tr>
         <!-- /TMPL_LOOP -->
       </table>
