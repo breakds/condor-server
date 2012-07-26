@@ -316,6 +316,7 @@ be executed. "
 (hunchentoot:define-easy-handler (update-server-base :uri "/updatebase") (path)
   (setf (hunchentoot:content-type*) "text/plain")
   (setf *server-base* path)
+  (setf (hunchentoot:acceptor-document-root *acceptor*) path)
   (ensure-directories-exist (merge-pathnames "imgs/fake" *server-base*))
   (copy-files "../imgs/" (merge-pathnames "imgs/" *server-base*))
   ;; redirect to gui
