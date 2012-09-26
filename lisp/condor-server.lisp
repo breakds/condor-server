@@ -1,3 +1,10 @@
+;;;; condor-server.lisp
+;;;; author: breakds
+
+
+(in-package #:breakds.condor-server)
+;; code for condor-server goes below
+
 ;; ==================== Data structure ====================
 (defstruct job id status (node-id -1) (ip "") ;; for status 0=pending -1=error 1=processing 2=complete 3=received
            (start-time-stamp 0) ;; start-time-stamp records a universal time
