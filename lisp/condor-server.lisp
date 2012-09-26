@@ -91,9 +91,9 @@
 ;; ==================== Internal Variables ====================
 (defparameter *acceptor* nil "the condor dispatchers acceptor")
 (defparameter *dispatchers* (make-hash-table :test #'equal) "the set of dispacthers")
-(defparameter *gui-tmpl* #P"../template/gui.tmpl")
-(defparameter *view-tmpl* #P"../template/console.tmpl")
-(defparameter *interface-tmpl* #P"../template/interface.tmpl")
+(defparameter *gui-tmpl* (asdf:system-relative-pathname 'condor-server "template/gui.tmpl"))
+(defparameter *view-tmpl* (asdf:system-relative-pathname 'condor-server "template/console.tmpl"))
+(defparameter *interface-tmpl* (asdf:system-relative-pathname 'condor-server "template/interface.tmpl"))
 
 ;; ==================== External Variables ====================
 (defparameter *log-path* "/scratch.1/breakds/condor/base/log/condor_server.log")
@@ -325,7 +325,7 @@ be executed. "
   (setf *server-base* path)
   (setf (hunchentoot:acceptor-document-root *acceptor*) path)
   (ensure-directories-exist (merge-pathnames "imgs/fake" *server-base*))
-  (copy-files "../imgs/" (merge-pathnames "imgs/" *server-base*))
+  (copy-files (asdf:system-relative-pathname 'condor-server "imgs/") (merge-pathnames "imgs/" *server-base*))
   ;; redirect to gui
   (hunchentoot:redirect 
    (format nil "http://~a/gui" (hunchentoot:host))))

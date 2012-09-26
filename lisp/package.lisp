@@ -3,7 +3,8 @@
 (defpackage #:breakds.condor-server
   (:nicknames #:condor-server)
   (:use #:cl)
-  (:export #:job
+  (:export #:get-author
+           #:job
            #:dispatcher
            #:start-server
            #:stop-server))

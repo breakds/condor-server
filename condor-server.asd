@@ -2,8 +2,14 @@
 ;;;; author: breakds
 
 (asdf:defsystem #:condor-server
+    :description "condor-server: a web server providing interactive
+    interface for manipulating condor jobs."
+    :version "0.5.1"
+    :author "BreakDS <breakds@gmail.com>"
+    :licence "Public Domain"
+    :depends-on (#:hunchentoot
+                 #:html-template)
     :serial t
-    :depends-on (#:hunchentoot)
     :components ((:file "lisp/package")
                  (:file "lisp/condor-server")))
                  
