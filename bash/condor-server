@@ -1,0 +1,9 @@
+#! /bin/bash
+
+mkdir -p /tmp/condor-server
+detachtty --dribble-file /tmp/condor-server/dribble \
+    --pid-file /tmp/condor-server/pid \
+    /tmp/condor-server/socket \
+    $(which sbcl) --eval "(ql:quickload 'condor-server)" \
+    --eval "(condor-server:start-server)"
+
