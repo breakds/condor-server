@@ -45,15 +45,13 @@ until [[ ${response[0]} -eq -1 ]]; do
     eval "./runprocess.sh&" &> console.output
     pid=$!
 
-    while sleep ${gap}; do
-        kill -0 ${pid}
-        if [[ $? -eq 0 ]]; then
-            # report to server
-            curl -F "name=${dispatcher}" -F "jobid=${jobid}" -F "data=@console.output" ${server}/report
-        else
-            break
-        fi
-    done
+    eval "./report.sh ${server} ${dispatcher} ${jobid} ${gap}&"
+    reportPID=$!
+    
+    wait ${pid} # wait till the main process finishes
+
+    kill -9 ${reportPID} # kill the report process
+    
     # last report
     curl -F "name=${dispatcher}" -F "jobid=${jobid}" -F "data=@console.output" ${server}/report
     
