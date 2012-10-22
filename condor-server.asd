@@ -6,7 +6,7 @@
     interface for manipulating condor jobs."
     :version "0.5.1"
     :author "BreakDS <breakds@gmail.com>"
-    :licence "Public Domain"
+    :license "Public Domain"
     :depends-on (#:hunchentoot
                  #:html-template)
     :serial t
